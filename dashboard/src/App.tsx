@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ConfigProvider, Layout, Button, Card, Typography, Space } from 'antd'
 import { FireOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons'
+import moment from 'moment'
 import './App.css'
 import { lightTheme, darkTheme } from './theme/antd-theme'
 
@@ -75,7 +76,7 @@ function App() {
           </Card>
         </Content>
         <Footer style={{ textAlign: 'center' }}>
-          Dashboard ©2024 Created with Ant Design
+          Dashboard ©{moment().year()} Created with Ant Design
         </Footer>
       </Layout>
     </ConfigProvider>
