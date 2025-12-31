@@ -1,9 +1,15 @@
-import instructions from '../files/instructions.txt'
-import stevenDuxALlInterviewsTranscript from '../files/steven_dux_all_interviews_transcript.txt'
-import stevenDuxALlYoutubeVideosTranscript from '../files/steven_dux_all_youtube_videos_transcript.txt'
+// ==== instructions ====
+import shorting from '../../files/instructions/shorting.txt'
 
-export {
-    instructions,
+// ==== knowledge ====
+// steven dux all interviews transcript
+import stevenDuxALlInterviewsTranscript from '../../files/knowledge/steven-dux/all_interviews_transcript.txt'
+import stevenDuxALlYoutubeVideosTranscript from '../../files/knowledge/steven-dux/all_youtube_videos_transcript.txt'
+
+export const instructions = {
+    shorting,
+}
+export const knowledge = {
     stevenDuxALlInterviewsTranscript,
     stevenDuxALlYoutubeVideosTranscript,
 }
