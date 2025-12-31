@@ -1,7 +1,9 @@
-import { ThemeConfig } from 'antd'
+import { ThemeConfig, theme } from 'antd'
 
-// Ant Design theme configuration
-export const antdTheme: ThemeConfig = {
+const { defaultAlgorithm, darkAlgorithm } = theme
+
+// Base theme tokens
+const baseTheme: ThemeConfig = {
   token: {
     // Primary color
     colorPrimary: '#1890ff',
@@ -23,10 +25,40 @@ export const antdTheme: ThemeConfig = {
       borderRadius: 8,
     },
     Layout: {
-      headerBg: '#001529',
       headerHeight: 64,
       headerPadding: '0 24px',
     },
   },
 }
+
+// Light theme configuration
+export const lightTheme: ThemeConfig = {
+  ...baseTheme,
+  algorithm: defaultAlgorithm,
+  components: {
+    ...baseTheme.components,
+    Layout: {
+      ...baseTheme.components?.Layout,
+      headerBg: '#001529',
+      bodyBg: '#f0f2f5',
+    },
+  },
+}
+
+// Dark theme configuration
+export const darkTheme: ThemeConfig = {
+  ...baseTheme,
+  algorithm: darkAlgorithm,
+  components: {
+    ...baseTheme.components,
+    Layout: {
+      ...baseTheme.components?.Layout,
+      headerBg: '#141414',
+      bodyBg: '#000000',
+    },
+  },
+}
+
+// Default export (light theme for backward compatibility)
+export const antdTheme = lightTheme
 

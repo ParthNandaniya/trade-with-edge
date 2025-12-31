@@ -1,23 +1,56 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ConfigProvider, Layout, Button, Card, Typography, Space } from 'antd'
-import { FireOutlined } from '@ant-design/icons'
+import { FireOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons'
 import './App.css'
-import { auth, db } from './firebase/config'
-import { antdTheme } from './theme/antd-theme'
+import { lightTheme, darkTheme } from './theme/antd-theme'
 
 const { Header, Content, Footer } = Layout
 const { Title, Paragraph } = Typography
 
 function App() {
   const [count, setCount] = useState(0)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Check localStorage for saved theme preference
+    const savedTheme = localStorage.getItem('theme')
+    return savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  })
+
+  // Save theme preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
+
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev)
+  }
+
+  const currentTheme = isDarkMode ? darkTheme : lightTheme
 
   return (
-    <ConfigProvider theme={antdTheme}>
+    <ConfigProvider theme={currentTheme}>
       <Layout style={{ minHeight: '100vh' }}>
-        <Header style={{ display: 'flex', alignItems: 'center', background: '#001529' }}>
+        <Header style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          padding: '0 24px'
+        }}>
           <Title level={3} style={{ color: '#fff', margin: 0 }}>
             <FireOutlined /> Dashboard
           </Title>
+          <Button
+            type="text"
+            icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />}
+            onClick={toggleTheme}
+            style={{ 
+              color: '#fff',
+              fontSize: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          />
         </Header>
         <Content style={{ padding: '24px' }}>
           <Card>
