@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
+    "@pinecone-database/pinecone": "^6.1.3",
     "antd": "^5.12.8",
     "firebase": "^10.7.1",
     "moment": "^2.30.1",
