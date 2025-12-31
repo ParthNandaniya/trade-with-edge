@@ -1,4 +1,11 @@
-import { Pinecone } from '@pinecone-database/pinecone'
+import { Pinecone, type PineconeConfiguration } from '@pinecone-database/pinecone'
+
+/**
+ * Pinecone Configuration for Browser/Frontend
+ * 
+ * This is the default configuration for browser environments.
+ * For Node.js environments with proxy support, use config.proxy.ts instead
+ */
 
 // Pinecone configuration
 const apiKey = import.meta.env.VITE_PINECONE_API_KEY
@@ -12,9 +19,11 @@ let pineconeClient: Pinecone | null = null
 
 try {
   if (apiKey) {
-    pineconeClient = new Pinecone({
+    const config: PineconeConfiguration = {
       apiKey: apiKey,
-    })
+    }
+
+    pineconeClient = new Pinecone(config)
   }
 } catch (error) {
   console.error('Pinecone initialization error:', error)

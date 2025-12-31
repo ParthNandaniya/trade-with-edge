@@ -149,6 +149,40 @@ const queryResponse = await index.query({
 - [Node.js SDK Reference](https://docs.pinecone.io/reference/sdks/node/overview)
 - [Pinecone Console](https://app.pinecone.io/)
 
+## Proxy Configuration (Node.js Only)
+
+If you need to use Pinecone through a proxy (e.g., corporate network, mitmproxy), use the proxy configuration file:
+
+**For Node.js environments (backend, build scripts):**
+
+```typescript
+// Use config.proxy.ts instead of config.ts
+import { pineconeClient } from './pinecone/config.proxy'
+```
+
+**Environment variables for proxy setup:**
+
+```env
+PINECONE_API_KEY=your_api_key_here
+PINECONE_PROXY_URI=https://your-proxy.com
+PINECONE_PROXY_HOST=your-proxy-host
+PINECONE_PROXY_PORT=your-proxy-port
+PINECONE_PROXY_CERT_PATH=path/to/mitmproxy-ca-cert.pem  # Optional
+```
+
+**Example usage with proxy:**
+
+```typescript
+import { pineconeClient } from './pinecone/config.proxy'
+
+if (pineconeClient) {
+  const indexes = await pineconeClient.listIndexes()
+  console.log('My indexes:', indexes)
+}
+```
+
+⚠️ **Note**: Proxy configuration uses Node.js-specific modules (`fs`, `undici`) and will NOT work in browser environments. Use `config.ts` for browser/frontend code.
+
 ## Security Note
 
 ⚠️ **Important**: The Pinecone API key is exposed in the browser when using it in a frontend application.
