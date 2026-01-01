@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider } from 'antd';
+import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider, Badge } from 'antd';
 import { CameraOutlined, ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -35,6 +35,7 @@ export const Screenshot = () => {
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [hasError, setHasError] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const timelineRef = useRef<HTMLDivElement | null>(null);
 
   const getFilename = (screenshot: ScreenshotResult): string => {
     const symbol = ticker.toUpperCase();
@@ -43,8 +44,8 @@ export const Screenshot = () => {
       return `${symbol}_data.png`;
     } else if (screenshot.name === 'tradingview') {
       // Differentiate between TradingView variants
-      if (screenshot.variant === 'secondary') {
-        return `${symbol}_secondary_chart.png`;
+      if (screenshot.variant) {
+        return `${symbol}_${screenshot.variant}_chart.png`;
       }
       // Default variant
       return `${symbol}_default_chart.png`;
@@ -105,6 +106,24 @@ export const Screenshot = () => {
       }
     };
   }, []);
+
+  // Auto-scroll timeline to bottom when new status updates arrive
+  useEffect(() => {
+    if (timelineRef.current && statusUpdates.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        const timelineContainer = timelineRef.current;
+        if (timelineContainer) {
+          timelineContainer.scrollTop = timelineContainer.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [statusUpdates]);
+
+  // Count failed steps
+  const failedStepsCount = statusUpdates.filter(update => 
+    update.step.includes('error') || update.step.includes('failed') || update.success === false
+  ).length;
 
   const takeScreenshot = () => {
     if (!ticker || ticker.trim() === '') {
@@ -208,14 +227,16 @@ export const Screenshot = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={4} style={{ margin: 0 }}>Stock Screenshots</Title>
           {(statusUpdates.length > 0 || hasError) && (
-            <Button
-              type="text"
-              icon={<HistoryOutlined />}
-              onClick={() => setShowStatusPanel(true)}
-              size="small"
-            >
-              View Steps
-            </Button>
+            <Badge count={failedStepsCount > 0 ? failedStepsCount : 0} offset={[8, 0]}>
+              <Button
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setShowStatusPanel(true)}
+                size="small"
+              >
+                View Steps
+              </Button>
+            </Badge>
           )}
         </div>
         
@@ -376,8 +397,16 @@ export const Screenshot = () => {
         )}
 
         {statusUpdates.length > 0 ? (
-          <Timeline
-            items={statusUpdates.map((update, index) => {
+          <div 
+            ref={timelineRef}
+            style={{ 
+              maxHeight: 'calc(100vh - 200px)', 
+              overflowY: 'auto',
+              paddingRight: '8px'
+            }}
+          >
+            <Timeline
+              items={statusUpdates.map((update, index) => {
               const isSuccess = update.step.includes('complete') || 
                                update.step.includes('found') || 
                                update.step.includes('verified') ||
@@ -415,7 +444,8 @@ export const Screenshot = () => {
                 )
               };
             })}
-          />
+            />
+          </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <Spin size="large" tip="Waiting for updates..." />

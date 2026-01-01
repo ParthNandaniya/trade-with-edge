@@ -4,9 +4,28 @@ import { ScreenshotStep, ScreenshotStepResult } from '../types';
 const TRADINGVIEW_BASE_URL = 'https://www.tradingview.com/chart';
 
 /**
- * Creates a TradingView screenshot step with a specific variant
+ * Configuration for button clicks before taking screenshot
  */
-function createTradingViewStep(variant: string = 'default'): ScreenshotStep {
+export interface ButtonClickConfig {
+  selector: string; // CSS selector for the button to click
+  waitAfter?: number; // Milliseconds to wait after clicking (default: 1000)
+  waitForSelector?: string; // Optional selector to wait for after clicking
+  waitForSelectorTimeout?: number; // Timeout for waiting for selector (default: 10000)
+}
+
+/**
+ * Configuration for TradingView screenshot step
+ */
+export interface TradingViewStepConfig {
+  variant: string;
+  buttonClicks?: ButtonClickConfig[]; // Array of buttons to click before taking screenshot
+}
+
+/**
+ * Creates a TradingView screenshot step with a specific variant and optional button clicks
+ */
+function createTradingViewStep(config: TradingViewStepConfig): ScreenshotStep {
+  const { variant, buttonClicks = [] } = config;
   return {
     name: 'tradingview',
     execute: async (browser: Browser, page: Page, ticker: string, sendEvent?: (event: string, data: any) => void): Promise<ScreenshotStepResult> => {
@@ -58,6 +77,62 @@ function createTradingViewStep(variant: string = 'default'): ScreenshotStep {
 
         // Give extra time for content to fully render
         await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Click buttons if configured (for second screenshot)
+        if (buttonClicks && buttonClicks.length > 0) {
+          log(`Clicking ${buttonClicks.length} button(s) before taking screenshot...`, `tradingview_${variant}_clicking_buttons`);
+          
+          for (let i = 0; i < buttonClicks.length; i++) {
+            const buttonConfig = buttonClicks[i];
+            
+            try {
+              log(`Clicking button ${i + 1}/${buttonClicks.length}: ${buttonConfig.selector}`, `tradingview_${variant}_click_button_${i + 1}`);
+              
+              // Wait for button to be available
+              await page.waitForSelector(buttonConfig.selector, {
+                timeout: buttonConfig.waitForSelectorTimeout || 10000,
+                visible: true
+              });
+              
+              // Click the button
+              await page.click(buttonConfig.selector);
+              log(`Button ${i + 1} clicked successfully`, `tradingview_${variant}_button_${i + 1}_clicked`);
+              
+              // Wait for optional selector after click
+              if (buttonConfig.waitForSelector) {
+                log(`Waiting for element: ${buttonConfig.waitForSelector}`, `tradingview_${variant}_waiting_after_click_${i + 1}`);
+                await page.waitForSelector(buttonConfig.waitForSelector, {
+                  timeout: buttonConfig.waitForSelectorTimeout || 10000
+                }).catch(() => {
+                  log(`Element ${buttonConfig.waitForSelector} not found, continuing...`, `tradingview_${variant}_wait_skipped_${i + 1}`);
+                });
+              }
+              
+              // Wait after click (default 1 second)
+              const waitTime = buttonConfig.waitAfter || 1000;
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              
+            } catch (buttonError: any) {
+              log(`Error clicking button ${i + 1}: ${buttonError.message}`, `tradingview_${variant}_button_error_${i + 1}`);
+              // Continue with other buttons even if one fails
+            }
+          }
+          
+          log('All buttons clicked, dismissing tooltips...', `tradingview_${variant}_buttons_complete`);
+          
+          // Press ESC key to dismiss any tooltips that might be showing
+          try {
+            await page.keyboard.press('Escape');
+            log('ESC key pressed to dismiss tooltips', `tradingview_${variant}_dismiss_tooltips`);
+            // Wait a bit for tooltips to disappear
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (escError) {
+            log('Error pressing ESC key, continuing...', `tradingview_${variant}_esc_error`);
+          }
+          
+          // Additional wait after all buttons are clicked and tooltips dismissed
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
 
         // Get bounding boxes of both elements and calculate combined area
         log('Calculating combined bounding box...', `tradingview_${variant}_calculating_bounds`);
@@ -132,8 +207,20 @@ function createTradingViewStep(variant: string = 'default'): ScreenshotStep {
 }
 
 // Export default TradingView step (variant: 'default')
-export const tradingviewStep = createTradingViewStep('default');
+export const tradingviewStep = createTradingViewStep({ variant: 'default' });
 
-// Export second TradingView step (variant: 'secondary' or you can change this)
-// You can customize the variant name as needed
-export const tradingviewStep2 = createTradingViewStep('secondary');
+// Export second TradingView step (variant: 'day')
+// This step clicks buttons to configure the chart before taking screenshot
+export const tradingviewStep2 = createTradingViewStep({
+  variant: 'day',
+  buttonClicks: [
+    {
+      selector: 'button[aria-label="Extended trading hours"]',
+      waitAfter: 1500, // Wait 1.5 seconds after clicking to allow UI to update
+    },
+    {
+      selector: 'button[aria-label="1 day in 1 minute intervals"]',
+      waitAfter: 2000, // Wait 2 seconds after clicking to allow chart to update
+    }
+  ]
+});
