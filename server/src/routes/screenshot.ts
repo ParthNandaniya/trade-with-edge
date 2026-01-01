@@ -14,7 +14,7 @@ const DEVICE_SCALE_FACTOR = 2;
 const SCREENSHOT_STEPS: ScreenshotStep[] = [
   finvizStep,
   tradingviewStep,      // First TradingView screenshot (variant: 'default')
-  tradingviewStep2,     // Second TradingView screenshot (variant: 'secondary')
+  // tradingviewStep2,     // Second TradingView screenshot (variant: 'secondary')
   // Add more steps here as you create them
   // Example: anotherWebsiteStep,
 ];
