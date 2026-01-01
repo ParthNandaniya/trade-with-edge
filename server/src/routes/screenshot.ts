@@ -5,7 +5,7 @@ export const screenshotRouter = Router();
 
 // Finviz configuration
 const FINVIZ_BASE_URL = 'https://finviz.com/quote.ashx';
-const FINVIZ_SELECTOR = 'table.snapshot-table2'; // Main snapshot table with stock data
+const FINVIZ_SELECTOR = '.screener_snapshot-table-wrapper'; // Snapshot table wrapper containing all stock data
 const VIEWPORT_WIDTH = 1920;
 const VIEWPORT_HEIGHT = 1080;
 
