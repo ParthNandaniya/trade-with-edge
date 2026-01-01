@@ -8,6 +8,7 @@ const API_STREAM_URL = 'http://localhost:3001/api/screenshot/stream';
 
 interface ScreenshotResult {
   name: string;
+  variant?: string; // Optional variant to differentiate between multiple screenshots of the same source
   success: boolean;
   image?: string;
   url: string;
@@ -35,6 +36,24 @@ export const Screenshot = () => {
   const [hasError, setHasError] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  const getFilename = (screenshot: ScreenshotResult): string => {
+    const symbol = ticker.toUpperCase();
+    // Custom filename based on screenshot source and variant
+    if (screenshot.name === 'finviz') {
+      return `${symbol}_data.png`;
+    } else if (screenshot.name === 'tradingview') {
+      // Differentiate between TradingView variants
+      if (screenshot.variant === 'secondary') {
+        return `${symbol}_secondary_chart.png`;
+      }
+      // Default variant
+      return `${symbol}_default_chart.png`;
+    }
+    // Fallback for other sources
+    const variantSuffix = screenshot.variant ? `_${screenshot.variant}` : '';
+    return `${symbol}_${screenshot.name}${variantSuffix}_screenshot.png`;
+  };
+
   const downloadScreenshot = (screenshot: ScreenshotResult) => {
     if (!screenshot.image) return;
 
@@ -52,7 +71,7 @@ export const Screenshot = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${ticker.toUpperCase()}_${screenshot.name}_screenshot.png`;
+    link.download = getFilename(screenshot);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -244,7 +263,10 @@ export const Screenshot = () => {
                       size="small"
                       title={
                         <Space>
-                          <Text strong style={{ textTransform: 'capitalize' }}>{screenshot.name}</Text>
+                          <Text strong style={{ textTransform: 'capitalize' }}>
+                            {screenshot.name}
+                            {screenshot.variant && ` (${screenshot.variant})`}
+                          </Text>
                           <Tag color="success">Success</Tag>
                         </Space>
                       }
@@ -259,7 +281,7 @@ export const Screenshot = () => {
                     >
                       <Image
                         src={screenshot.image}
-                        alt={`Screenshot from ${screenshot.name}`}
+                        alt={`Screenshot from ${screenshot.name}${screenshot.variant ? ` (${screenshot.variant})` : ''}`}
                         style={{ width: '100%', borderRadius: '4px' }}
                         preview={{
                           mask: 'Preview',

@@ -15,6 +15,7 @@ export interface ScreenshotStepConfig {
 
 export interface ScreenshotStepResult {
   name: string;
+  variant?: string; // Optional variant to differentiate between multiple screenshots of the same source
   success: boolean;
   image?: string; // base64 encoded image
   url: string;
