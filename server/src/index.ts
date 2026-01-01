@@ -2,14 +2,15 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { screenshotRouter } from './routes/screenshot.js';
+import { tickerRouter } from './routes/ticker.js';
+import { config } from './config.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173', // Vite dev server default port
-  credentials: true
+  origin: config.cors.origin,
+  credentials: config.cors.credentials
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -21,9 +22,11 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/screenshot', screenshotRouter);
+app.use('/api/ticker', tickerRouter);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📸 Screenshot API available at http://localhost:${PORT}/api/screenshot`);
+app.listen(config.port, () => {
+  console.log(`🚀 Server is running on http://localhost:${config.port}`);
+  console.log(`📸 Screenshot API available at http://localhost:${config.port}/api/screenshot`);
+  console.log(`🔍 Ticker Search API available at http://localhost:${config.port}/api/ticker/search`);
 });

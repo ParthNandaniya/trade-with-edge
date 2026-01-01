@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider, Badge, Collapse } from 'antd';
-import { CameraOutlined, ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined, ClockCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons';
+import { Button, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider, Badge, Collapse, AutoComplete } from 'antd';
+import { ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined, ClockCircleOutlined, HistoryOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
 const API_STREAM_URL = 'http://localhost:3001/api/screenshot/stream';
+const TICKER_SEARCH_URL = 'http://localhost:3001/api/ticker/search';
 
 interface ScreenshotResult {
   name: string;
@@ -43,6 +44,27 @@ interface AlphaVantageData {
   trading?: AlphaVantageTradingData;
 }
 
+interface TickerSearchResult {
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  marketOpen: string;
+  marketClose: string;
+  timezone: string;
+  currency: string;
+  matchScore: number;
+}
+
+interface TickerSearchResponse {
+  success: boolean;
+  keywords: string;
+  count: number;
+  results: TickerSearchResult[];
+  error?: string;
+  message?: string;
+}
+
 export const Screenshot = () => {
   const [ticker, setTicker] = useState('');
   const [screenshots, setScreenshots] = useState<ScreenshotResult[]>([]);
@@ -56,6 +78,12 @@ export const Screenshot = () => {
   const [showTradingJsonPreview, setShowTradingJsonPreview] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timelineRef = useRef<HTMLDivElement | null>(null);
+  
+  // Ticker search state
+  const [searchValue, setSearchValue] = useState('');
+  const [searchOptions, setSearchOptions] = useState<Array<{ value: string; label: JSX.Element }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getFilename = (screenshot: ScreenshotResult): string => {
     const symbol = ticker.toUpperCase();
@@ -157,6 +185,85 @@ export const Screenshot = () => {
     });
   };
 
+  // Search for ticker symbols
+  const searchTicker = async (value: string) => {
+    if (!value || value.trim().length < 2) {
+      setSearchOptions([]);
+      return;
+    }
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Debounce search requests
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const response = await fetch(`${TICKER_SEARCH_URL}?keywords=${encodeURIComponent(value.trim())}`);
+        const data: TickerSearchResponse = await response.json();
+
+        if (data.success && data.results && data.results.length > 0) {
+          const options = data.results.map((result) => ({
+            value: result.symbol,
+            label: (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <Text strong style={{ fontSize: '14px' }}>{result.symbol}</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: '12px' }}>{result.name}</Text>
+                </div>
+                <Tag color="blue" style={{ marginLeft: '8px' }}>{result.currency}</Tag>
+              </div>
+            ),
+            result: result
+          }));
+          setSearchOptions(options);
+        } else {
+          setSearchOptions([]);
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Error searching for ticker:', errorMessage);
+        setSearchOptions([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300); // 300ms debounce
+  };
+
+  // Handle ticker selection from search - automatically trigger screenshot
+  const handleTickerSelect = (value: string) => {
+    const tickerValue = value.toUpperCase();
+    setTicker(tickerValue);
+    setSearchValue(tickerValue); // Keep the selected value visible
+    setSearchOptions([]);
+    // Automatically trigger screenshot with the selected ticker
+    takeScreenshot(tickerValue);
+  };
+
+  // Handle manual ticker entry via Enter key in search
+  const handleSearchEnter = () => {
+    if (searchValue && searchValue.trim().length > 0) {
+      const tickerValue = searchValue.trim().toUpperCase();
+      setTicker(tickerValue);
+      setSearchValue(tickerValue);
+      setSearchOptions([]);
+      // Automatically trigger screenshot with the entered ticker
+      takeScreenshot(tickerValue);
+    }
+  };
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Cleanup EventSource on unmount
   useEffect(() => {
     return () => {
@@ -185,8 +292,9 @@ export const Screenshot = () => {
     update.step.includes('error') || update.step.includes('failed') || update.success === false
   ).length;
 
-  const takeScreenshot = () => {
-    if (!ticker || ticker.trim() === '') {
+  const takeScreenshot = (tickerOverride?: string) => {
+    const tickerToUse = tickerOverride || ticker;
+    if (!tickerToUse || tickerToUse.trim() === '') {
       message.error('Please enter a ticker symbol');
       return;
     }
@@ -203,7 +311,7 @@ export const Screenshot = () => {
     setShowStatusPanel(true);
     setHasError(false);
 
-    const tickerUpper = ticker.trim().toUpperCase();
+    const tickerUpper = tickerToUse.trim().toUpperCase();
     const eventSource = new EventSource(`${API_STREAM_URL}?ticker=${encodeURIComponent(tickerUpper)}`);
     eventSourceRef.current = eventSource;
 
@@ -309,24 +417,40 @@ export const Screenshot = () => {
           )}
         </div>
         
-        <Space.Compact style={{ width: '100%' }}>
-          <Input
-            placeholder="Enter ticker symbol (e.g., RAIN, AAPL, TSLA)"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            onPressEnter={takeScreenshot}
-            disabled={loading}
-            style={{ width: '200px' }}
-          />
-          <Button
-            type="primary"
-            icon={<CameraOutlined />}
-            onClick={takeScreenshot}
-            loading={loading}
-          >
-            Take Screenshots
-          </Button>
-        </Space.Compact>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <div>
+            <Text type="secondary" style={{ fontSize: '12px', marginBottom: '4px', display: 'block' }}>
+              Search for US stocks or enter ticker symbol
+            </Text>
+            <AutoComplete
+              style={{ width: '100%' }}
+              placeholder="Search ticker symbol or company name (e.g., Apple, AAPL, Tesla) - Press Enter or select from dropdown"
+              value={searchValue}
+              options={searchOptions}
+              onSearch={searchTicker}
+              onSelect={handleTickerSelect}
+              onChange={(value) => setSearchValue(value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchValue && searchValue.trim().length > 0) {
+                  handleSearchEnter();
+                }
+              }}
+              notFoundContent={searchLoading ? <Spin size="small" /> : searchValue.length >= 2 ? 'No US stocks found' : 'Type at least 2 characters to search'}
+              allowClear
+              filterOption={false}
+              disabled={loading}
+              suffixIcon={searchLoading ? <LoadingOutlined /> : loading ? <LoadingOutlined /> : <SearchOutlined />}
+            />
+            {ticker && (
+              <div style={{ marginTop: '8px' }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Current ticker: <Text strong>{ticker}</Text>
+                  {loading && <Spin size="small" style={{ marginLeft: '8px' }} />}
+                </Text>
+              </div>
+            )}
+          </div>
+        </Space>
 
         {successfulScreenshots.length > 0 && !loading && (
           <Card>
@@ -575,7 +699,7 @@ export const Screenshot = () => {
           <div style={{ textAlign: 'center' }}>
             <Button
               icon={<ReloadOutlined />}
-              onClick={takeScreenshot}
+              onClick={() => takeScreenshot()}
               loading={loading}
             >
               Retake All Screenshots

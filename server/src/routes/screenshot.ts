@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { ScreenshotStep, ScreenshotStepResult, ScreenshotResponse, AlphaVantageData } from './screenshot/types';
 import { finvizStep, tradingviewStep, tradingviewStep2 } from './screenshot/steps';
+import { config } from '../config.js';
 
 export const screenshotRouter = Router();
 
@@ -114,7 +115,7 @@ async function fetchAlphaVantageTimeSeries(ticker: string, apiKey: string = 'dem
 /**
  * Fetch Alpha Vantage news sentiment data for a ticker
  */
-async function fetchAlphaVantageNewsSentiment(ticker: string, apiKey: string = 'demo', limit: number = 6): Promise<any> {
+async function fetchAlphaVantageNewsSentiment(ticker: string, apiKey: string = 'demo', limit: number = 10): Promise<any> {
   try {
     const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${ticker.toUpperCase()}&limit=${limit}&apikey=${apiKey}`;
     
@@ -152,7 +153,7 @@ async function fetchAlphaVantageNewsSentiment(ticker: string, apiKey: string = '
 async function fetchAlphaVantageData(ticker: string, apiKey: string = 'demo'): Promise<any> {
   const [timeSeriesData, newsData] = await Promise.allSettled([
     fetchAlphaVantageTimeSeries(ticker, apiKey),
-    fetchAlphaVantageNewsSentiment(ticker, apiKey, 6)
+    fetchAlphaVantageNewsSentiment(ticker, apiKey, 10)
   ]);
 
   return {
@@ -235,8 +236,7 @@ screenshotRouter.get('/', async (req: Request, res: Response) => {
       // Fetch news sentiment data
       try {
         console.log(`📊 Fetching Alpha Vantage news sentiment for ${ticker.toUpperCase()}...`);
-        const apiKey = process.env.ALPHA_VANTAGE_API_KEY || 'demo';
-        const newsData = await fetchAlphaVantageNewsSentiment(ticker, apiKey, 6);
+        const newsData = await fetchAlphaVantageNewsSentiment(ticker, config.alphaVantage.apiKey, 10);
         alphaVantageData.news = {
           success: true,
           data: newsData
@@ -257,8 +257,7 @@ screenshotRouter.get('/', async (req: Request, res: Response) => {
       // Fetch trading (time series) data
       try {
         console.log(`📊 Fetching Alpha Vantage time series for ${ticker.toUpperCase()}...`);
-        const apiKey = process.env.ALPHA_VANTAGE_API_KEY || 'demo';
-        const timeSeriesData = await fetchAlphaVantageTimeSeries(ticker, apiKey);
+        const timeSeriesData = await fetchAlphaVantageTimeSeries(ticker, config.alphaVantage.apiKey);
         alphaVantageData.trading = {
           success: true,
           data: timeSeriesData
@@ -353,9 +352,7 @@ screenshotRouter.get('/stream', async (req: Request, res: Response) => {
           message: 'Fetching Alpha Vantage news sentiment...', 
           step: 'alpha_vantage_news_fetch' 
         });
-        const apiKey = process.env.ALPHA_VANTAGE_API_KEY || 'demo';
-        console.log('API Key:', apiKey);
-        const newsData = await fetchAlphaVantageNewsSentiment(ticker, apiKey, 6);
+        const newsData = await fetchAlphaVantageNewsSentiment(ticker, config.alphaVantage.apiKey, 10);
         
         alphaVantageData.news = {
           success: true,
@@ -390,8 +387,7 @@ screenshotRouter.get('/stream', async (req: Request, res: Response) => {
           message: 'Fetching Alpha Vantage time series...', 
           step: 'alpha_vantage_trading_fetch' 
         });
-        const apiKey = process.env.ALPHA_VANTAGE_API_KEY || 'demo';
-        const timeSeriesData = await fetchAlphaVantageTimeSeries(ticker, apiKey);
+        const timeSeriesData = await fetchAlphaVantageTimeSeries(ticker, config.alphaVantage.apiKey);
         
         alphaVantageData.trading = {
           success: true,
