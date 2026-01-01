@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { ScreenshotStep, ScreenshotStepResult, ScreenshotResponse } from './screenshot/types';
-import { finvizStep } from './screenshot/steps';
+import { finvizStep, tradingviewStep } from './screenshot/steps';
 
 export const screenshotRouter = Router();
 
@@ -13,6 +13,7 @@ const DEVICE_SCALE_FACTOR = 2;
 // List of all screenshot steps to execute
 const SCREENSHOT_STEPS: ScreenshotStep[] = [
   finvizStep,
+  tradingviewStep,
   // Add more steps here as you create them
   // Example: anotherWebsiteStep,
 ];
