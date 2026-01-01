@@ -214,16 +214,17 @@ export const tradingviewStep = createTradingViewStep({ variant: 'default' });
 export const tradingviewStep2 = createTradingViewStep({
   variant: 'day',
   buttonClicks: [
-    {
-      // selector: '.chart-controls-bar > div > div:nth-child(3)',
-      selector: '.chart-controls-bar > div > div:nth-child(3) > div:nth-child(2) > div > button',
-      waitAfter: 2000, // Wait 2 seconds after clicking to allow menu to open
-      waitForSelectorTimeout: 15000, // Wait up to 15 seconds for the button to appear
-    },
-    {
-      selector: 'div[data-qa-id="menu-inner"] div[data-role="menuitem"]',
-      waitAfter: 1500, // Wait 1.5 seconds after clicking
-    },
+    // FIXME: solve this later, enable extended hours in the screenshot here
+    // {
+    //   // selector: '.chart-controls-bar > div > div:nth-child(3)',
+    //   selector: '.chart-controls-bar > div > div:nth-child(3) > div:nth-child(2) > div > button',
+    //   waitAfter: 2000, // Wait 2 seconds after clicking to allow menu to open
+    //   waitForSelectorTimeout: 15000, // Wait up to 15 seconds for the button to appear
+    // },
+    // {
+    //   selector: 'div[data-qa-id="menu-inner"] div[data-role="menuitem"]',
+    //   waitAfter: 1500, // Wait 1.5 seconds after clicking
+    // },
     {
       selector: 'button[aria-label="1 day in 1 minute intervals"]',
       waitAfter: 2000, // Wait 2 seconds after clicking to allow chart to update

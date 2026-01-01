@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider, Badge } from 'antd';
-import { CameraOutlined, ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
+import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider, Badge, Collapse } from 'antd';
+import { CameraOutlined, ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined, ClockCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -26,14 +26,34 @@ interface StatusUpdate {
   success?: boolean;
 }
 
+interface AlphaVantageNewsData {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+}
+
+interface AlphaVantageTradingData {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+}
+
+interface AlphaVantageData {
+  news?: AlphaVantageNewsData;
+  trading?: AlphaVantageTradingData;
+}
+
 export const Screenshot = () => {
   const [ticker, setTicker] = useState('');
   const [screenshots, setScreenshots] = useState<ScreenshotResult[]>([]);
+  const [alphaVantageData, setAlphaVantageData] = useState<AlphaVantageData | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([]);
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [showNewsJsonPreview, setShowNewsJsonPreview] = useState(false);
+  const [showTradingJsonPreview, setShowTradingJsonPreview] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timelineRef = useRef<HTMLDivElement | null>(null);
 
@@ -87,6 +107,46 @@ export const Screenshot = () => {
         setTimeout(() => downloadScreenshot(screenshot), 100);
       }
     });
+  };
+
+  const downloadNewsJson = () => {
+    if (!alphaVantageData?.news?.data) {
+      message.error('No news data available to download');
+      return;
+    }
+
+    const jsonString = JSON.stringify(alphaVantageData.news.data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${ticker.toUpperCase()}_news_data.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    message.success('News data downloaded successfully!');
+  };
+
+  const downloadTradingJson = () => {
+    if (!alphaVantageData?.trading?.data) {
+      message.error('No trading data available to download');
+      return;
+    }
+
+    const jsonString = JSON.stringify(alphaVantageData.trading.data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${ticker.toUpperCase()}_trading_data.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    message.success('Trading data downloaded successfully!');
   };
 
   const showTickerNotFoundAlert = () => {
@@ -165,6 +225,7 @@ export const Screenshot = () => {
     eventSource.addEventListener('complete', (e) => {
       const data = JSON.parse(e.data);
       setScreenshots(data.screenshots || []);
+      setAlphaVantageData(data.alphaVantage || null);
       setLoading(false);
       setHasError(!data.success);
       
@@ -173,6 +234,14 @@ export const Screenshot = () => {
       
       if (data.success) {
         message.success(`Screenshots captured for ${data.ticker}! (${successCount}/${totalCount} successful)`);
+        const hasNews = data.alphaVantage?.news?.success;
+        const hasTrading = data.alphaVantage?.trading?.success;
+        if (hasNews || hasTrading) {
+          const dataTypes = [];
+          if (hasNews) dataTypes.push('news');
+          if (hasTrading) dataTypes.push('trading');
+          message.info(`Alpha Vantage ${dataTypes.join(' & ')} data fetched successfully`);
+        }
       } else {
         message.warning(`Screenshots completed with some errors for ${data.ticker} (${successCount}/${totalCount} successful)`);
       }
@@ -346,6 +415,158 @@ export const Screenshot = () => {
                   )}
                 </div>
               ))}
+            </Space>
+          </Card>
+        )}
+
+        {/* News Data Section */}
+        {alphaVantageData?.news && !loading && (
+          <Card>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Title level={5} style={{ margin: 0 }}>
+                  News Sentiment Data
+                  {alphaVantageData.news.success ? (
+                    <Tag color="success" style={{ marginLeft: '8px' }}>Success</Tag>
+                  ) : (
+                    <Tag color="error" style={{ marginLeft: '8px' }}>Failed</Tag>
+                  )}
+                </Title>
+                {alphaVantageData.news.success && alphaVantageData.news.data && (
+                  <Space>
+                    <Button
+                      type="default"
+                      icon={<EyeOutlined />}
+                      onClick={() => setShowNewsJsonPreview(!showNewsJsonPreview)}
+                    >
+                      {showNewsJsonPreview ? 'Hide' : 'Preview'} JSON
+                    </Button>
+                    <Button
+                      type="primary"
+                      icon={<DownloadOutlined />}
+                      onClick={downloadNewsJson}
+                    >
+                      Download JSON
+                    </Button>
+                  </Space>
+                )}
+              </div>
+
+              {alphaVantageData.news.success && alphaVantageData.news.data ? (
+                <>
+                  {showNewsJsonPreview && (
+                    <Collapse
+                      items={[{
+                        key: '1',
+                        label: 'News Sentiment JSON Preview',
+                        children: (
+                          <pre style={{ 
+                            backgroundColor: '#f5f5f5', 
+                            padding: '16px', 
+                            borderRadius: '4px',
+                            overflow: 'auto',
+                            maxHeight: '500px',
+                            fontSize: '12px',
+                            lineHeight: '1.5'
+                          }}>
+                            {JSON.stringify(alphaVantageData.news.data, null, 2)}
+                          </pre>
+                        )
+                      }]}
+                    />
+                  )}
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    News sentiment data fetched successfully. Click "Preview JSON" to view or "Download JSON" to save.
+                  </Text>
+                </>
+              ) : (
+                <div style={{ 
+                  padding: '12px', 
+                  backgroundColor: '#fff2f0', 
+                  borderRadius: '4px',
+                  border: '1px solid #ffccc7'
+                }}>
+                  <Text type="danger">
+                    {alphaVantageData.news.error || 'Failed to fetch news sentiment data'}
+                  </Text>
+                </div>
+              )}
+            </Space>
+          </Card>
+        )}
+
+        {/* Trading Data Section */}
+        {alphaVantageData?.trading && !loading && (
+          <Card>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Title level={5} style={{ margin: 0 }}>
+                  Trading Data (Time Series)
+                  {alphaVantageData.trading.success ? (
+                    <Tag color="success" style={{ marginLeft: '8px' }}>Success</Tag>
+                  ) : (
+                    <Tag color="error" style={{ marginLeft: '8px' }}>Failed</Tag>
+                  )}
+                </Title>
+                {alphaVantageData.trading.success && alphaVantageData.trading.data && (
+                  <Space>
+                    <Button
+                      type="default"
+                      icon={<EyeOutlined />}
+                      onClick={() => setShowTradingJsonPreview(!showTradingJsonPreview)}
+                    >
+                      {showTradingJsonPreview ? 'Hide' : 'Preview'} JSON
+                    </Button>
+                    <Button
+                      type="primary"
+                      icon={<DownloadOutlined />}
+                      onClick={downloadTradingJson}
+                    >
+                      Download JSON
+                    </Button>
+                  </Space>
+                )}
+              </div>
+
+              {alphaVantageData.trading.success && alphaVantageData.trading.data ? (
+                <>
+                  {showTradingJsonPreview && (
+                    <Collapse
+                      items={[{
+                        key: '1',
+                        label: 'Trading Data JSON Preview',
+                        children: (
+                          <pre style={{ 
+                            backgroundColor: '#f5f5f5', 
+                            padding: '16px', 
+                            borderRadius: '4px',
+                            overflow: 'auto',
+                            maxHeight: '500px',
+                            fontSize: '12px',
+                            lineHeight: '1.5'
+                          }}>
+                            {JSON.stringify(alphaVantageData.trading.data, null, 2)}
+                          </pre>
+                        )
+                      }]}
+                    />
+                  )}
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Trading data fetched successfully. Click "Preview JSON" to view or "Download JSON" to save.
+                  </Text>
+                </>
+              ) : (
+                <div style={{ 
+                  padding: '12px', 
+                  backgroundColor: '#fff2f0', 
+                  borderRadius: '4px',
+                  border: '1px solid #ffccc7'
+                }}>
+                  <Text type="danger">
+                    {alphaVantageData.trading.error || 'Failed to fetch trading data'}
+                  </Text>
+                </div>
+              )}
             </Space>
           </Card>
         )}
