@@ -1,26 +1,45 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer } from 'antd';
+import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal, Timeline, Tag, Drawer, Row, Col, Divider } from 'antd';
 import { CameraOutlined, ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
 const API_STREAM_URL = 'http://localhost:3001/api/screenshot/stream';
 
+interface ScreenshotResult {
+  name: string;
+  success: boolean;
+  image?: string;
+  url: string;
+  selector?: string;
+  error?: string;
+  timestamp: string;
+}
+
+interface StatusUpdate {
+  message: string;
+  step: string;
+  timestamp: Date;
+  url?: string;
+  website?: string;
+  success?: boolean;
+}
+
 export const Screenshot = () => {
   const [ticker, setTicker] = useState('');
-  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [screenshots, setScreenshots] = useState<ScreenshotResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusUpdates, setStatusUpdates] = useState<Array<{ message: string; step: string; timestamp: Date; url?: string }>>([]);
+  const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([]);
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [hasError, setHasError] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const downloadScreenshot = () => {
-    if (!screenshot) return;
+  const downloadScreenshot = (screenshot: ScreenshotResult) => {
+    if (!screenshot.image) return;
 
     // Extract base64 data from data URL
-    const base64Data = screenshot.split(',')[1];
+    const base64Data = screenshot.image.split(',')[1];
     const byteCharacters = atob(base64Data);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -33,13 +52,21 @@ export const Screenshot = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${ticker.toUpperCase()}_screenshot.png`;
+    link.download = `${ticker.toUpperCase()}_${screenshot.name}_screenshot.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    message.success('Screenshot downloaded successfully!');
+    message.success(`Screenshot from ${screenshot.name} downloaded successfully!`);
+  };
+
+  const downloadAllScreenshots = () => {
+    screenshots.forEach(screenshot => {
+      if (screenshot.success && screenshot.image) {
+        setTimeout(() => downloadScreenshot(screenshot), 100);
+      }
+    });
   };
 
   const showTickerNotFoundAlert = () => {
@@ -72,7 +99,7 @@ export const Screenshot = () => {
     }
 
     setLoading(true);
-    setScreenshot(null);
+    setScreenshots([]);
     setStatusUpdates([]);
     setCurrentUrl(null);
     setShowStatusPanel(true);
@@ -88,7 +115,9 @@ export const Screenshot = () => {
         message: data.message, 
         step: data.step, 
         timestamp: new Date(),
-        url: data.url 
+        url: data.url,
+        website: data.website,
+        success: data.success
       }]);
       if (data.url) {
         setCurrentUrl(data.url);
@@ -97,20 +126,32 @@ export const Screenshot = () => {
 
     eventSource.addEventListener('complete', (e) => {
       const data = JSON.parse(e.data);
-      setScreenshot(data.image);
+      setScreenshots(data.screenshots || []);
       setLoading(false);
-      setHasError(false);
-      message.success(`Screenshot captured for ${data.ticker}!`);
+      setHasError(!data.success);
+      
+      const successCount = data.screenshots?.filter((s: ScreenshotResult) => s.success).length || 0;
+      const totalCount = data.screenshots?.length || 0;
+      
+      if (data.success) {
+        message.success(`Screenshots captured for ${data.ticker}! (${successCount}/${totalCount} successful)`);
+      } else {
+        message.warning(`Screenshots completed with some errors for ${data.ticker} (${successCount}/${totalCount} successful)`);
+      }
+      
       // Auto-close panel on successful completion
-      setTimeout(() => {
-        setShowStatusPanel(false);
-      }, 500);
+      if (data.success) {
+        setTimeout(() => {
+          setShowStatusPanel(false);
+        }, 500);
+      }
+      
       eventSource.close();
       eventSourceRef.current = null;
     });
 
     eventSource.addEventListener('error', (e: MessageEvent) => {
-      const data = e.data ? JSON.parse(e.data) : { error: 'Unknown error', message: 'Failed to take screenshot' };
+      const data = e.data ? JSON.parse(e.data) : { error: 'Unknown error', message: 'Failed to take screenshots' };
       
       setHasError(true);
       setLoading(false);
@@ -120,7 +161,7 @@ export const Screenshot = () => {
           data.message?.toLowerCase().includes('ticker')) {
         showTickerNotFoundAlert();
       } else {
-        message.error(data.message || data.error || 'Failed to take screenshot');
+        message.error(data.message || data.error || 'Failed to take screenshots');
       }
       
       eventSource.close();
@@ -138,12 +179,15 @@ export const Screenshot = () => {
     };
   };
 
+  const successfulScreenshots = screenshots.filter(s => s.success && s.image);
+  const failedScreenshots = screenshots.filter(s => !s.success);
+
   return (
     <>
       <Card>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Title level={4} style={{ margin: 0 }}>Finviz Stock Screenshot</Title>
+          <Title level={4} style={{ margin: 0 }}>Stock Screenshots</Title>
           {(statusUpdates.length > 0 || hasError) && (
             <Button
               type="text"
@@ -171,43 +215,108 @@ export const Screenshot = () => {
             onClick={takeScreenshot}
             loading={loading}
           >
-            Take Screenshot
+            Take Screenshots
           </Button>
         </Space.Compact>
 
-
-        {screenshot && !loading && (
+        {successfulScreenshots.length > 0 && !loading && (
           <Card>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Title level={5} style={{ margin: 0 }}>Screenshot Preview</Title>
-                <Space>
+                <Title level={5} style={{ margin: 0 }}>
+                  Screenshots ({successfulScreenshots.length}/{screenshots.length} successful)
+                </Title>
+                {successfulScreenshots.length > 1 && (
                   <Button
-                    type="primary"
+                    type="default"
                     icon={<DownloadOutlined />}
-                    onClick={downloadScreenshot}
+                    onClick={downloadAllScreenshots}
                   >
-                    Download
+                    Download All
                   </Button>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={takeScreenshot}
-                    loading={loading}
-                  >
-                    Retake
-                  </Button>
-                </Space>
+                )}
               </div>
-              <Image
-                src={screenshot}
-                alt="Screenshot"
-                style={{ maxWidth: '100%', borderRadius: '8px' }}
-                preview={{
-                  mask: 'Preview',
-                }}
-              />
+              
+              <Row gutter={[16, 16]}>
+                {successfulScreenshots.map((screenshot, index) => (
+                  <Col xs={24} sm={12} lg={8} key={index}>
+                    <Card
+                      size="small"
+                      title={
+                        <Space>
+                          <Text strong style={{ textTransform: 'capitalize' }}>{screenshot.name}</Text>
+                          <Tag color="success">Success</Tag>
+                        </Space>
+                      }
+                      extra={
+                        <Button
+                          type="text"
+                          icon={<DownloadOutlined />}
+                          size="small"
+                          onClick={() => downloadScreenshot(screenshot)}
+                        />
+                      }
+                    >
+                      <Image
+                        src={screenshot.image}
+                        alt={`Screenshot from ${screenshot.name}`}
+                        style={{ width: '100%', borderRadius: '4px' }}
+                        preview={{
+                          mask: 'Preview',
+                        }}
+                      />
+                      <div style={{ marginTop: '8px' }}>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>
+                          {new Date(screenshot.timestamp).toLocaleTimeString()}
+                        </Text>
+                      </div>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
             </Space>
           </Card>
+        )}
+
+        {failedScreenshots.length > 0 && !loading && (
+          <Card>
+            <Title level={5} style={{ margin: 0, color: '#ff4d4f' }}>
+              Failed Screenshots ({failedScreenshots.length})
+            </Title>
+            <Divider style={{ margin: '12px 0' }} />
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              {failedScreenshots.map((screenshot, index) => (
+                <div key={index} style={{ 
+                  padding: '8px 12px', 
+                  backgroundColor: '#fff2f0', 
+                  borderRadius: '4px',
+                  border: '1px solid #ffccc7'
+                }}>
+                  <Space>
+                    <Text strong style={{ textTransform: 'capitalize' }}>{screenshot.name}</Text>
+                    <Tag color="error">Failed</Tag>
+                  </Space>
+                  {screenshot.error && (
+                    <div style={{ marginTop: '4px' }}>
+                      <Text type="danger" style={{ fontSize: '12px' }}>{screenshot.error}</Text>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </Space>
+          </Card>
+        )}
+
+        {screenshots.length > 0 && !loading && (
+          <div style={{ textAlign: 'center' }}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={takeScreenshot}
+              loading={loading}
+            >
+              Retake All Screenshots
+            </Button>
+          </div>
         )}
       </Space>
       </Card>
@@ -246,20 +355,27 @@ export const Screenshot = () => {
 
         {statusUpdates.length > 0 ? (
           <Timeline
-            items={statusUpdates.map((update) => {
+            items={statusUpdates.map((update, index) => {
               const isSuccess = update.step.includes('complete') || 
                                update.step.includes('found') || 
                                update.step.includes('verified') ||
-                               update.step.includes('ready');
-              const isError = update.step.includes('error');
+                               update.step.includes('ready') ||
+                               (update.success === true);
+              const isError = update.step.includes('error') || update.step.includes('failed');
               
               return {
+                key: index,
                 color: isError ? 'red' : isSuccess ? 'green' : 'blue',
                 dot: isSuccess ? <CheckCircleOutlined style={{ fontSize: '12px' }} /> : 
                      isError ? <Text style={{ color: 'red', fontSize: '12px' }}>✕</Text> :
                      <ClockCircleOutlined style={{ fontSize: '12px' }} />,
                 children: (
                   <div style={{ marginBottom: '12px' }}>
+                    {update.website && (
+                      <Tag color="blue" style={{ marginBottom: '4px', textTransform: 'capitalize' }}>
+                        {update.website}
+                      </Tag>
+                    )}
                     <Text style={{ fontSize: '13px', lineHeight: '1.5' }}>{update.message}</Text>
                     {update.url && update.url !== currentUrl && (
                       <div style={{ marginTop: '6px' }}>
