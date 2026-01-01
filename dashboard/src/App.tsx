@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
-import { ConfigProvider, Layout, Button, Card, Typography, Space } from 'antd'
+import { ConfigProvider, Layout, Button, Typography } from 'antd'
 import { FireOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons'
 import moment from 'moment'
 import './App.css'
 import { lightTheme, darkTheme } from './theme/antd-theme'
+import { Screenshot } from './components/Screenshot'
 
 const { Header, Content, Footer } = Layout
-const { Title, Paragraph } = Typography
+const { Title } = Typography
 
 function App() {
-  const [count, setCount] = useState(0)
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check localStorage for saved theme preference
     const savedTheme = localStorage.getItem('theme')
@@ -54,26 +54,7 @@ function App() {
           />
         </Header>
         <Content style={{ padding: '24px' }}>
-          <Card>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              <div>
-                <Title level={2}>Welcome to Dashboard</Title>
-                <Paragraph>React TypeScript + Firebase + Ant Design</Paragraph>
-              </div>
-              <div>
-                <Button 
-                  type="primary" 
-                  size="large"
-                  onClick={() => setCount((count) => count + 1)}
-                >
-                  Count is {count}
-                </Button>
-              </div>
-              <Paragraph type="secondary">
-                Edit <code>src/App.tsx</code> to get started
-              </Paragraph>
-            </Space>
-          </Card>
+          <Screenshot />
         </Content>
         <Footer style={{ textAlign: 'center' }}>
           Dashboard ©{moment().year()} Created with Ant Design

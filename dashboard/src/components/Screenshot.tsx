@@ -1,15 +1,49 @@
 import { useState } from 'react';
-import { Button, Input, Card, Image, Spin, message, Space, Typography } from 'antd';
-import { CameraOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Input, Card, Image, Spin, message, Space, Typography, Modal } from 'antd';
+import { CameraOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
 const API_URL = 'http://localhost:3001/api/screenshot';
 
 export const Screenshot = () => {
-  const [ticker, setTicker] = useState('RAIN');
+  const [ticker, setTicker] = useState('');
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const downloadScreenshot = () => {
+    if (!screenshot) return;
+
+    // Extract base64 data from data URL
+    const base64Data = screenshot.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${ticker.toUpperCase()}_screenshot.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    message.success('Screenshot downloaded successfully!');
+  };
+
+  const showTickerNotFoundAlert = () => {
+    Modal.error({
+      title: 'Ticker Symbol Not Found',
+      content: `The ticker symbol "${ticker.toUpperCase()}" was not found. Please check the symbol and try again.`,
+      okText: 'OK',
+    });
+  };
 
   const takeScreenshot = async () => {
     if (!ticker || ticker.trim() === '') {
@@ -26,8 +60,18 @@ export const Screenshot = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to take screenshot');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || errorData.error || 'Failed to take screenshot';
+        
+        // Check if it's a ticker not found error
+        if (errorMessage.toLowerCase().includes('not found') || 
+            errorMessage.toLowerCase().includes('ticker') ||
+            response.status === 404) {
+          showTickerNotFoundAlert();
+        } else {
+          message.error(errorMessage);
+        }
+        return;
       }
 
       const data = await response.json();
@@ -54,7 +98,7 @@ export const Screenshot = () => {
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onPressEnter={takeScreenshot}
             disabled={loading}
-            style={{ flex: 1 }}
+            style={{ width: '200px' }}
           />
           <Button
             type="primary"
@@ -62,7 +106,7 @@ export const Screenshot = () => {
             onClick={takeScreenshot}
             loading={loading}
           >
-            Capture Screenshot
+            Take Screenshot
           </Button>
         </Space.Compact>
 
@@ -77,13 +121,22 @@ export const Screenshot = () => {
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Title level={5} style={{ margin: 0 }}>Screenshot Preview</Title>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={takeScreenshot}
-                  loading={loading}
-                >
-                  Retake
-                </Button>
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<DownloadOutlined />}
+                    onClick={downloadScreenshot}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={takeScreenshot}
+                    loading={loading}
+                  >
+                    Retake
+                  </Button>
+                </Space>
               </div>
               <Image
                 src={screenshot}
