@@ -4,8 +4,10 @@ import { ReloadOutlined, DownloadOutlined, LoadingOutlined, CheckCircleOutlined,
 
 const { Title, Text } = Typography;
 
-const API_STREAM_URL = 'http://localhost:3001/api/screenshot/stream';
-const TICKER_SEARCH_URL = 'http://localhost:3001/api/ticker/search';
+import { API_CONFIG } from '../config/api';
+
+const API_STREAM_URL = API_CONFIG.SCREENSHOT_STREAM;
+const TICKER_SEARCH_URL = API_CONFIG.TICKER_SEARCH;
 
 // LocalStorage keys for caching
 const CACHE_KEYS = {

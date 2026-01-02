@@ -4,7 +4,9 @@ import { ReloadOutlined, ArrowUpOutlined, ArrowDownOutlined, CopyOutlined } from
 
 const { Title, Text } = Typography;
 
-const API_URL = 'http://localhost:3001/api/gainers-losers';
+import { API_CONFIG } from '../config/api';
+
+const API_URL = API_CONFIG.GAINERS_LOSERS;
 
 interface StockData {
   ticker: string;

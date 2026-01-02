@@ -1,24 +1,19 @@
 {
   "name": "trade-with-edge",
   "version": "1.0.0",
-  "description": "Trade With Edge - Dashboard and Backend",
-  "type": "module",
+  "description": "Trading dashboard with edge detection",
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "cd server && npm run dev",
-    "dev:client": "cd dashboard && npm run dev",
-    "build": "npm run build:server && npm run build:client",
-    "build:server": "cd server && npm run build",
-    "build:client": "cd dashboard && npm run build",
-    "install:all": "npm install && cd server && npm install && cd ../dashboard && npm install",
-    "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
-    "start:server": "cd server && npm start",
-    "start:client": "cd dashboard && npm run preview"
+    "build": "npm run build:dashboard && npm run build:functions",
+    "build:dashboard": "cd dashboard && npm install && npm run build",
+    "build:functions": "cd functions && npm install && npm run build",
+    "deploy": "npm run build && firebase deploy",
+    "deploy:hosting": "npm run build:dashboard && firebase deploy --only hosting",
+    "deploy:functions": "npm run build:functions && firebase deploy --only functions",
+    "deploy:all": "npm run build && firebase deploy",
+    "serve": "firebase emulators:start",
+    "test:deploy": "npm run build && firebase deploy --only hosting,functions --dry-run"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+  "license": "ISC"
 }
