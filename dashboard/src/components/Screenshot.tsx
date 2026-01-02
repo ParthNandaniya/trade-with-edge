@@ -74,8 +74,8 @@ export const Screenshot = () => {
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [showNewsJsonPreview, setShowNewsJsonPreview] = useState(false);
-  const [showTradingJsonPreview, setShowTradingJsonPreview] = useState(false);
+  const [showNewsJsonPreview, setShowNewsJsonPreview] = useState(true);
+  const [showTradingJsonPreview, setShowTradingJsonPreview] = useState(true);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   
@@ -175,6 +175,56 @@ export const Screenshot = () => {
     URL.revokeObjectURL(url);
 
     message.success('Trading data downloaded successfully!');
+  };
+
+  const downloadAllFiles = () => {
+    if (!ticker) {
+      message.warning('No ticker selected');
+      return;
+    }
+
+    const delay = 200; // Delay between downloads to avoid browser blocking
+
+    // Download all screenshots
+    const screenshotCount = screenshots.filter(s => s.success && s.image).length;
+    screenshots.forEach((screenshot, index) => {
+      if (screenshot.success && screenshot.image) {
+        setTimeout(() => {
+          downloadScreenshot(screenshot);
+        }, index * delay);
+      }
+    });
+
+    let currentDelay = screenshotCount * delay;
+
+    // Download news JSON if available
+    if (alphaVantageData?.news?.success && alphaVantageData.news.data) {
+      setTimeout(() => {
+        downloadNewsJson();
+      }, currentDelay);
+      currentDelay += delay;
+    }
+
+    // Download trading JSON if available
+    if (alphaVantageData?.trading?.success && alphaVantageData.trading.data) {
+      setTimeout(() => {
+        downloadTradingJson();
+      }, currentDelay);
+      currentDelay += delay;
+    }
+
+    const totalFiles = screenshotCount + 
+      (alphaVantageData?.news?.success && alphaVantageData.news.data ? 1 : 0) +
+      (alphaVantageData?.trading?.success && alphaVantageData.trading.data ? 1 : 0);
+
+    if (totalFiles === 0) {
+      message.warning('No files available to download');
+      return;
+    }
+
+    setTimeout(() => {
+      message.success(`Downloading ${totalFiles} file${totalFiles !== 1 ? 's' : ''}...`);
+    }, 100);
   };
 
   const showTickerNotFoundAlert = () => {
@@ -292,11 +342,6 @@ export const Screenshot = () => {
     update.step.includes('error') || update.step.includes('failed') || update.success === false
   ).length;
 
-  // Count successful steps
-  const successfulStepsCount = statusUpdates.filter(update => 
-    update.step.includes('complete') || update.step.includes('success') || update.success === true
-  ).length;
-
   const takeScreenshot = (tickerOverride?: string) => {
     const tickerToUse = tickerOverride || ticker;
     if (!tickerToUse || tickerToUse.trim() === '') {
@@ -353,7 +398,7 @@ export const Screenshot = () => {
           const dataTypes = [];
           if (hasNews) dataTypes.push('news');
           if (hasTrading) dataTypes.push('trading');
-          message.info(`Alpha Vantage ${dataTypes.join(' & ')} data fetched successfully`);
+          message.success(`Alpha Vantage ${dataTypes.join(' & ')} data fetched successfully`);
         }
       } else {
         message.warning(`Screenshots completed with some errors for ${data.ticker} (${successCount}/${totalCount} successful)`);
@@ -409,40 +454,11 @@ export const Screenshot = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={4} style={{ margin: 0 }}>Stock Screenshots</Title>
           {(statusUpdates.length > 0 || hasError) && (
-            <Space>
-              {successfulStepsCount > 0 && (
-                <Badge 
-                  count={successfulStepsCount} 
-                  offset={[8, 0]}
-                  style={{ backgroundColor: '#52c41a' }}
-                >
-                  <Button
-                    type="text"
-                    icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-                    onClick={() => setShowStatusPanel(true)}
-                    size="small"
-                    style={{ color: '#52c41a' }}
-                  >
-                    View Steps
-                  </Button>
-                </Badge>
-              )}
-              {failedStepsCount > 0 && (
-                <Badge 
-                  count={failedStepsCount} 
-                  offset={[8, 0]}
-                >
-                  <Button
-                    type="text"
-                    icon={<HistoryOutlined />}
-                    onClick={() => setShowStatusPanel(true)}
-                    size="small"
-                  >
-                    View Steps
-                  </Button>
-                </Badge>
-              )}
-              {successfulStepsCount === 0 && failedStepsCount === 0 && (
+            failedStepsCount > 0 ? (
+              <Badge 
+                count={failedStepsCount} 
+                offset={[8, 0]}
+              >
                 <Button
                   type="text"
                   icon={<HistoryOutlined />}
@@ -451,45 +467,92 @@ export const Screenshot = () => {
                 >
                   View Steps
                 </Button>
-              )}
-            </Space>
+              </Badge>
+            ) : (
+              <Button
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setShowStatusPanel(true)}
+                size="small"
+              >
+                View Steps
+              </Button>
+            )
           )}
         </div>
         
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <div>
-            <Text type="secondary" style={{ fontSize: '12px', marginBottom: '4px', display: 'block' }}>
-              Search for US stocks or enter ticker symbol
-            </Text>
-            <AutoComplete
-              style={{ width: '100%' }}
-              placeholder="Search ticker symbol or company name (e.g., Apple, AAPL, Tesla) - Press Enter or select from dropdown"
-              value={searchValue}
-              options={searchOptions}
-              onSearch={searchTicker}
-              onSelect={handleTickerSelect}
-              onChange={(value) => setSearchValue(value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchValue && searchValue.trim().length > 0) {
-                  handleSearchEnter();
-                }
-              }}
-              notFoundContent={searchLoading ? <Spin size="small" /> : searchValue.length >= 2 ? 'No US stocks found' : 'Type at least 2 characters to search'}
-              allowClear
-              filterOption={false}
-              disabled={loading}
-              suffixIcon={searchLoading ? <LoadingOutlined /> : loading ? <LoadingOutlined /> : <SearchOutlined />}
-            />
-            {ticker && (
-              <div style={{ marginTop: '8px' }}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Current ticker: <Text strong>{ticker}</Text>
-                  {loading && <Spin size="small" style={{ marginLeft: '8px' }} />}
-                </Text>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={24} md={12} lg={10} xl={8}>
+            <div>
+              <Text type="secondary" style={{ fontSize: '12px', marginBottom: '4px', display: 'block' }}>
+                Search for US stocks or enter ticker symbol
+              </Text>
+              <AutoComplete
+                style={{ width: '100%' }}
+                placeholder="Search ticker symbol or company name (e.g., Apple, AAPL, Tesla) - Press Enter or select from dropdown"
+                value={searchValue}
+                options={searchOptions}
+                onSearch={searchTicker}
+                onSelect={handleTickerSelect}
+                onChange={(value) => setSearchValue(value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchValue && searchValue.trim().length > 0) {
+                    handleSearchEnter();
+                  }
+                }}
+                notFoundContent={searchLoading ? <Spin size="small" /> : searchValue.length >= 2 ? 'No US stocks found' : 'Type at least 2 characters to search'}
+                allowClear
+                filterOption={false}
+                disabled={loading}
+                suffixIcon={searchLoading ? <LoadingOutlined /> : loading ? <LoadingOutlined /> : <SearchOutlined />}
+              />
+              {ticker && (
+                <div style={{ marginTop: '8px' }}>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Current ticker: <Text strong>{ticker}</Text>
+                    {loading && <Spin size="small" style={{ marginLeft: '8px' }} />}
+                  </Text>
+                </div>
+              )}
+            </div>
+          </Col>
+          <Col xs={24} sm={24} md={12} lg={14} xl={16} style={{ marginBottom: 5 }}>
+            {(successfulScreenshots.length > 0 || 
+              (alphaVantageData?.news?.success && alphaVantageData.news.data) ||
+              (alphaVantageData?.trading?.success && alphaVantageData.trading.data)) && 
+              !loading && (
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                height: '100%',
+                minHeight: '32px'
+              }}>
+                <Space size="small">
+                  {(successfulScreenshots.length > 0 || 
+                    (alphaVantageData?.news?.success && alphaVantageData.news.data) ||
+                    (alphaVantageData?.trading?.success && alphaVantageData.trading.data)) && (
+                    <Button
+                      type="primary"
+                      icon={<DownloadOutlined />}
+                      onClick={downloadAllFiles}
+                    >
+                      Download All Files
+                    </Button>
+                  )}
+                  {screenshots.length > 0 && (
+                    <Button
+                      icon={<ReloadOutlined />}
+                      onClick={() => takeScreenshot()}
+                      loading={loading}
+                    >
+                      Refetch All Screenshots
+                    </Button>
+                  )}
+                </Space>
               </div>
             )}
-          </div>
-        </Space>
+          </Col>
+        </Row>
 
         {successfulScreenshots.length > 0 && !loading && (
           <Card>
@@ -498,15 +561,17 @@ export const Screenshot = () => {
                 <Title level={5} style={{ margin: 0 }}>
                   Screenshots ({successfulScreenshots.length}/{screenshots.length} successful)
                 </Title>
-                {successfulScreenshots.length > 1 && (
-                  <Button
-                    type="default"
-                    icon={<DownloadOutlined />}
-                    onClick={downloadAllScreenshots}
-                  >
-                    Download All
-                  </Button>
-                )}
+                <Space>
+                  {successfulScreenshots.length > 1 && (
+                    <Button
+                      type="default"
+                      icon={<DownloadOutlined />}
+                      onClick={downloadAllScreenshots}
+                    >
+                      Download Screenshots
+                    </Button>
+                  )}
+                </Space>
               </div>
               
               <Row gutter={[16, 16]}>
@@ -734,17 +799,6 @@ export const Screenshot = () => {
           </Card>
         )}
 
-        {screenshots.length > 0 && !loading && (
-          <div style={{ textAlign: 'center' }}>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => takeScreenshot()}
-              loading={loading}
-            >
-              Retake All Screenshots
-            </Button>
-          </div>
-        )}
       </Space>
       </Card>
 
