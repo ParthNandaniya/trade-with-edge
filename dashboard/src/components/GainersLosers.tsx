@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, Table, Typography, Space, Spin, Alert, Tag, Row, Col, Button, message } from 'antd';
 import { ReloadOutlined, ArrowUpOutlined, ArrowDownOutlined, CopyOutlined } from '@ant-design/icons';
 
@@ -29,71 +29,33 @@ interface ApiResponse {
   message?: string;
 }
 
-const STORAGE_KEY = 'gainers-losers-data';
-const STORAGE_TIMESTAMP_KEY = 'gainers-losers-timestamp';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const fetchGainersLosers = async (): Promise<GainersLosersData> => {
+  const response = await fetch(API_URL);
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const result: ApiResponse = await response.json();
+
+  if (!result.success) {
+    throw new Error(result.error || result.message || 'Failed to fetch data');
+  }
+
+  if (!result.data) {
+    throw new Error('No data received from API');
+  }
+
+  return result.data;
+};
 
 export const GainersLosers = () => {
-  // Load from localStorage on mount
-  const loadCachedData = (): GainersLosersData | null => {
-    try {
-      const cached = localStorage.getItem(STORAGE_KEY);
-      const timestamp = localStorage.getItem(STORAGE_TIMESTAMP_KEY);
-      
-      if (cached && timestamp) {
-        const age = Date.now() - parseInt(timestamp, 10);
-        if (age < CACHE_DURATION) {
-          return JSON.parse(cached);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading cached data:', err);
-    }
-    return null;
-  };
-
-  const [data, setData] = useState<GainersLosersData | null>(() => loadCachedData());
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-
-    try {
-      const response = await fetch(API_URL);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: ApiResponse = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || result.message || 'Failed to fetch data');
-      }
-
-      if (result.data) {
-        setData(result.data);
-        setError(null); // Clear error only on successful fetch
-        // Cache the data
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(result.data));
-          localStorage.setItem(STORAGE_TIMESTAMP_KEY, Date.now().toString());
-        } catch (storageErr) {
-          console.warn('Failed to cache data:', storageErr);
-        }
-      } else {
-        throw new Error('No data received from API');
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-      console.error('Error fetching gainers and losers:', err);
-      // Don't clear data on error - keep showing previous data
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['gainers-losers'],
+    queryFn: fetchGainersLosers,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+  });
 
   const copyTicker = async (ticker: string) => {
     try {
@@ -117,11 +79,6 @@ export const GainersLosers = () => {
     }
   };
 
-  useEffect(() => {
-    // Fetch data on mount, but show cached data immediately if available
-    fetchData();
-  }, [fetchData]);
-
   const formatNumber = (value: string): string => {
     const num = parseFloat(value);
     if (isNaN(num)) return value;
@@ -138,6 +95,12 @@ export const GainersLosers = () => {
     const num = parseFloat(price);
     if (isNaN(num)) return price;
     return num.toFixed(2);
+  };
+
+  const formatPercentage = (percentage: string): string => {
+    const num = parseFloat(percentage.replace('%', ''));
+    if (isNaN(num)) return percentage;
+    return `${num.toFixed(2)}%`;
   };
 
   const getChangeColor = (changePercentage: string): string => {
@@ -175,13 +138,11 @@ export const GainersLosers = () => {
       title: 'Change',
       dataIndex: 'change_amount',
       key: 'change_amount',
-      render: (text: string, record: StockData) => (
+      render: (_text: string, record: StockData) => (
         <Space>
-          <Tag color={getChangeColor(record.change_percentage)} icon={<ArrowUpOutlined />}>
-            ${formatPrice(text)}
-          </Tag>
           <Text style={{ color: getChangeColor(record.change_percentage) }}>
-            {record.change_percentage}
+            <ArrowUpOutlined style={{ marginRight: '2px' }} />
+            {formatPercentage(record.change_percentage)}
           </Text>
         </Space>
       ),
@@ -225,11 +186,9 @@ export const GainersLosers = () => {
       key: 'change_amount',
       render: (text: string, record: StockData) => (
         <Space>
-          <Tag color={getChangeColor(record.change_percentage)} icon={<ArrowDownOutlined />}>
-            ${formatPrice(text)}
-          </Tag>
           <Text style={{ color: getChangeColor(record.change_percentage) }}>
-            {record.change_percentage}
+            <ArrowDownOutlined style={{ marginRight: '2px' }} />
+            {formatPercentage(record.change_percentage)}
           </Text>
         </Space>
       ),
@@ -242,7 +201,7 @@ export const GainersLosers = () => {
     },
   ];
 
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <Card>
         <Spin size="large" tip="Loading market data..." />
@@ -255,11 +214,11 @@ export const GainersLosers = () => {
       <Card>
         <Alert
           message="Error Loading Data"
-          description={error}
+          description={error instanceof Error ? error.message : 'An unknown error occurred'}
           type="error"
           showIcon
           action={
-            <Button size="small" onClick={fetchData} icon={<ReloadOutlined />}>
+            <Button size="small" onClick={() => refetch()} icon={<ReloadOutlined />}>
               Retry
             </Button>
           }
@@ -272,16 +231,17 @@ export const GainersLosers = () => {
     return null;
   }
 
+  const loading = isLoading || isRefetching;
+
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {error && (
         <Alert
           message="Error Refreshing Data"
-          description={error}
+          description={error instanceof Error ? error.message : 'An unknown error occurred'}
           type="warning"
           showIcon
           closable
-          onClose={() => setError(null)}
           style={{ marginBottom: '16px' }}
         />
       )}
@@ -300,8 +260,8 @@ export const GainersLosers = () => {
             </div>
             <Button
               icon={<ReloadOutlined />}
-              onClick={fetchData}
-              loading={loading}
+              onClick={() => refetch()}
+              loading={isRefetching}
               type="primary"
             >
               Refresh

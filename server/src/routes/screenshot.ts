@@ -24,8 +24,8 @@ const SCREENSHOT_STEPS: ScreenshotStep[] = [
  * Setup browser page with common configuration
  */
 async function setupPage(page: Page): Promise<void> {
-  page.setDefaultTimeout(30000);
-  page.setDefaultNavigationTimeout(60000);
+  page.setDefaultTimeout(60000); // Increased to 60 seconds
+  page.setDefaultNavigationTimeout(120000); // Increased to 2 minutes for slow-loading sites like TradingView
   
   await page.setViewport({ 
     width: VIEWPORT_WIDTH, 
@@ -57,8 +57,8 @@ async function launchBrowser(): Promise<Browser> {
       '--disable-features=IsolateOrigins,site-per-process',
       '--window-size=1920,1080'
     ],
-    timeout: 30000,
-    protocolTimeout: 60000
+    timeout: 60000,
+    protocolTimeout: 180000 // 3 minutes for protocol operations
   });
   
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -75,6 +75,48 @@ async function launchBrowser(): Promise<Browser> {
  */
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Transform Alpha Vantage time series data:
+ * - Remove numeric prefixes (1., 2., 3., etc.) from keys in Time Series objects
+ * - Calculate and add VWAP for each day
+ */
+function transformTimeSeriesData(data: any): any {
+  if (!data || !data['Time Series (Daily)']) {
+    return data;
+  }
+
+  const transformedData = { ...data };
+  const timeSeries = data['Time Series (Daily)'];
+  const transformedTimeSeries: any = {};
+
+  // Process each date in the time series
+  for (const date in timeSeries) {
+    const dayData = timeSeries[date];
+    const transformedDayData: any = {};
+
+    // Remove numeric prefixes and transform keys
+    for (const key in dayData) {
+      // Remove "1. ", "2. ", "3. ", "4. ", "5. " prefixes
+      const cleanKey = key.replace(/^\d+\.\s*/, '').toLowerCase();
+      transformedDayData[cleanKey] = dayData[key];
+    }
+
+    // Calculate VWAP: (High + Low + Close) / 3
+    const high = parseFloat(transformedDayData.high || '0');
+    const low = parseFloat(transformedDayData.low || '0');
+    const close = parseFloat(transformedDayData.close || '0');
+    
+    if (high && low && close) {
+      transformedDayData.vwap = ((high + low + close) / 3).toFixed(4);
+    }
+
+    transformedTimeSeries[date] = transformedDayData;
+  }
+
+  transformedData['Time Series (Daily)'] = transformedTimeSeries;
+  return transformedData;
 }
 
 /**
@@ -105,7 +147,8 @@ async function fetchAlphaVantageTimeSeries(ticker: string, apiKey: string = 'dem
       throw new Error(data['Note']); // API call frequency limit
     }
 
-    return data;
+    // Transform the data: remove numeric prefixes and add VWAP
+    return transformTimeSeriesData(data);
   } catch (error: any) {
     console.error('Error fetching Alpha Vantage time series data:', error);
     throw error;

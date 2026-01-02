@@ -292,6 +292,11 @@ export const Screenshot = () => {
     update.step.includes('error') || update.step.includes('failed') || update.success === false
   ).length;
 
+  // Count successful steps
+  const successfulStepsCount = statusUpdates.filter(update => 
+    update.step.includes('complete') || update.step.includes('success') || update.success === true
+  ).length;
+
   const takeScreenshot = (tickerOverride?: string) => {
     const tickerToUse = tickerOverride || ticker;
     if (!tickerToUse || tickerToUse.trim() === '') {
@@ -404,16 +409,50 @@ export const Screenshot = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={4} style={{ margin: 0 }}>Stock Screenshots</Title>
           {(statusUpdates.length > 0 || hasError) && (
-            <Badge count={failedStepsCount > 0 ? failedStepsCount : 0} offset={[8, 0]}>
-              <Button
-                type="text"
-                icon={<HistoryOutlined />}
-                onClick={() => setShowStatusPanel(true)}
-                size="small"
-              >
-                View Steps
-              </Button>
-            </Badge>
+            <Space>
+              {successfulStepsCount > 0 && (
+                <Badge 
+                  count={successfulStepsCount} 
+                  offset={[8, 0]}
+                  style={{ backgroundColor: '#52c41a' }}
+                >
+                  <Button
+                    type="text"
+                    icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                    onClick={() => setShowStatusPanel(true)}
+                    size="small"
+                    style={{ color: '#52c41a' }}
+                  >
+                    View Steps
+                  </Button>
+                </Badge>
+              )}
+              {failedStepsCount > 0 && (
+                <Badge 
+                  count={failedStepsCount} 
+                  offset={[8, 0]}
+                >
+                  <Button
+                    type="text"
+                    icon={<HistoryOutlined />}
+                    onClick={() => setShowStatusPanel(true)}
+                    size="small"
+                  >
+                    View Steps
+                  </Button>
+                </Badge>
+              )}
+              {successfulStepsCount === 0 && failedStepsCount === 0 && (
+                <Button
+                  type="text"
+                  icon={<HistoryOutlined />}
+                  onClick={() => setShowStatusPanel(true)}
+                  size="small"
+                >
+                  View Steps
+                </Button>
+              )}
+            </Space>
           )}
         </div>
         
