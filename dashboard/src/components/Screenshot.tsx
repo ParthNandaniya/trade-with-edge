@@ -7,6 +7,14 @@ const { Title, Text } = Typography;
 const API_STREAM_URL = 'http://localhost:3001/api/screenshot/stream';
 const TICKER_SEARCH_URL = 'http://localhost:3001/api/ticker/search';
 
+// LocalStorage keys for caching
+const CACHE_KEYS = {
+  TICKER: 'screenshot_cache_ticker',
+  SEARCH_VALUE: 'screenshot_cache_search_value',
+  SCREENSHOTS: 'screenshot_cache_screenshots',
+  ALPHA_VANTAGE_DATA: 'screenshot_cache_alpha_vantage_data',
+};
+
 interface ScreenshotResult {
   name: string;
   variant?: string; // Optional variant to differentiate between multiple screenshots of the same source
@@ -84,6 +92,42 @@ export const Screenshot = () => {
   const [searchOptions, setSearchOptions] = useState<Array<{ value: string; label: JSX.Element }>>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cache management functions
+  const saveToCache = (tickerValue: string, screenshotsData: ScreenshotResult[], alphaVantageDataValue: AlphaVantageData | null) => {
+    try {
+      localStorage.setItem(CACHE_KEYS.TICKER, tickerValue);
+      localStorage.setItem(CACHE_KEYS.SEARCH_VALUE, tickerValue);
+      localStorage.setItem(CACHE_KEYS.SCREENSHOTS, JSON.stringify(screenshotsData));
+      localStorage.setItem(CACHE_KEYS.ALPHA_VANTAGE_DATA, JSON.stringify(alphaVantageDataValue));
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  };
+
+  const loadFromCache = () => {
+    try {
+      const cachedTicker = localStorage.getItem(CACHE_KEYS.TICKER);
+      const cachedSearchValue = localStorage.getItem(CACHE_KEYS.SEARCH_VALUE);
+      const cachedScreenshots = localStorage.getItem(CACHE_KEYS.SCREENSHOTS);
+      const cachedAlphaVantageData = localStorage.getItem(CACHE_KEYS.ALPHA_VANTAGE_DATA);
+
+      if (cachedTicker) {
+        setTicker(cachedTicker);
+      }
+      if (cachedSearchValue) {
+        setSearchValue(cachedSearchValue);
+      }
+      if (cachedScreenshots) {
+        setScreenshots(JSON.parse(cachedScreenshots));
+      }
+      if (cachedAlphaVantageData) {
+        setAlphaVantageData(JSON.parse(cachedAlphaVantageData));
+      }
+    } catch (error) {
+      console.error('Error loading from cache:', error);
+    }
+  };
 
   const getFilename = (screenshot: ScreenshotResult): string => {
     const symbol = ticker.toUpperCase();
@@ -289,6 +333,13 @@ export const Screenshot = () => {
     setTicker(tickerValue);
     setSearchValue(tickerValue); // Keep the selected value visible
     setSearchOptions([]);
+    // Cache the ticker immediately
+    try {
+      localStorage.setItem(CACHE_KEYS.TICKER, tickerValue);
+      localStorage.setItem(CACHE_KEYS.SEARCH_VALUE, tickerValue);
+    } catch (error) {
+      console.error('Error caching ticker:', error);
+    }
     // Automatically trigger screenshot with the selected ticker
     takeScreenshot(tickerValue);
   };
@@ -300,10 +351,22 @@ export const Screenshot = () => {
       setTicker(tickerValue);
       setSearchValue(tickerValue);
       setSearchOptions([]);
+      // Cache the ticker immediately
+      try {
+        localStorage.setItem(CACHE_KEYS.TICKER, tickerValue);
+        localStorage.setItem(CACHE_KEYS.SEARCH_VALUE, tickerValue);
+      } catch (error) {
+        console.error('Error caching ticker:', error);
+      }
       // Automatically trigger screenshot with the entered ticker
       takeScreenshot(tickerValue);
     }
   };
+
+  // Load cached data on mount
+  useEffect(() => {
+    loadFromCache();
+  }, []);
 
   // Cleanup search timeout on unmount
   useEffect(() => {
@@ -382,18 +445,24 @@ export const Screenshot = () => {
 
     eventSource.addEventListener('complete', (e) => {
       const data = JSON.parse(e.data);
-      setScreenshots(data.screenshots || []);
-      setAlphaVantageData(data.alphaVantage || null);
+      const screenshotsData = data.screenshots || [];
+      const alphaVantageDataValue = data.alphaVantage || null;
+      
+      setScreenshots(screenshotsData);
+      setAlphaVantageData(alphaVantageDataValue);
       setLoading(false);
       setHasError(!data.success);
       
-      const successCount = data.screenshots?.filter((s: ScreenshotResult) => s.success).length || 0;
-      const totalCount = data.screenshots?.length || 0;
+      // Save to cache
+      saveToCache(tickerUpper, screenshotsData, alphaVantageDataValue);
+      
+      const successCount = screenshotsData?.filter((s: ScreenshotResult) => s.success).length || 0;
+      const totalCount = screenshotsData?.length || 0;
       
       if (data.success) {
         message.success(`Screenshots captured for ${data.ticker}! (${successCount}/${totalCount} successful)`);
-        const hasNews = data.alphaVantage?.news?.success;
-        const hasTrading = data.alphaVantage?.trading?.success;
+        const hasNews = alphaVantageDataValue?.news?.success;
+        const hasTrading = alphaVantageDataValue?.trading?.success;
         if (hasNews || hasTrading) {
           const dataTypes = [];
           if (hasNews) dataTypes.push('news');
